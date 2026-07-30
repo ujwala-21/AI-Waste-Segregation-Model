@@ -1,0 +1,2855 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>♻️ AI Smart Waste Segregation Hub</title>
+
+    <!-- Dependencies: TensorFlow, Teachable Machine, Lucide Icons, Google Fonts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        /* -------------------------------------------------------------
+           CSS Design System (Theme, Variables, Animations & Glassmorphism)
+           ------------------------------------------------------------- */
+        :root {
+            --bg-base: #0b0f19;
+            --bg-panel: rgba(17, 24, 39, 0.65);
+            --bg-panel-hover: rgba(31, 41, 55, 0.85);
+            --border-panel: rgba(255, 255, 255, 0.08);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            
+            --primary: #10b981; /* Neon Emerald */
+            --primary-glow: rgba(16, 185, 129, 0.25);
+            --secondary: #06b6d4; /* Cyber Cyan */
+            --secondary-glow: rgba(6, 182, 212, 0.25);
+            
+            /* Bin Colors */
+            --color-wet: #10b981;
+            --color-dry: #3b82f6;
+            --color-medical: #ef4444;
+            --color-electronic: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .dashboard-container {
+            width: 100%;
+            max-width: 1300px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* -------------------------------------------------------------
+           Header Section & Indicators
+           ------------------------------------------------------------- */
+        header {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-panel);
+            border-radius: 20px;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo-glowing {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .header-logo-glowing i {
+            color: white;
+            font-size: 22px;
+        }
+
+        .header-title h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #e5e7eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-badge {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-panel);
+            padding: 6px 14px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .status-badge i {
+            font-size: 14px;
+        }
+
+        .dot-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .dot-active { color: #10b981; background-color: #10b981; }
+        .dot-checking { color: #f59e0b; background-color: #f59e0b; }
+        .dot-inactive { color: #ef4444; background-color: #ef4444; }
+
+        /* -------------------------------------------------------------
+           Main Panel Grid
+           ------------------------------------------------------------- */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card-panel {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-panel);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Mode Tabs Switcher */
+        .mode-switcher {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mode-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mode-tab.active {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .mode-tab:hover:not(.active) {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* -------------------------------------------------------------
+           Viewport Components (Webcam Feed & Drag-Drop File)
+           ------------------------------------------------------------- */
+        .viewport-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #060913;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+
+        /* Video Feed / Webcam */
+        .webcam-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: none;
+        }
+
+        .webcam-container.active {
+            display: block;
+        }
+
+        #webcamStream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror camera for natural look */
+        }
+
+        /* Glowing HUD Overlay */
+        .hud-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .hud-badge {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hud-badge .pulsate-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--primary);
+            border-radius: 50%;
+            animation: pulse-dot-anim 1.5s infinite;
+        }
+
+        .hud-corners {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            bottom: 15px;
+            border: 2px solid transparent;
+            pointer-events: none;
+        }
+
+        /* Glowing Corner Bracket Borders */
+        .hud-corners::before, .hud-corners::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: rgba(16, 185, 129, 0.6);
+            border-style: solid;
+        }
+        
+        /* Top Left and Top Right */
+        .hud-corners::before {
+            top: 0; left: 0;
+            border-width: 3px 0 0 3px;
+        }
+        .hud-corners::after {
+            top: 0; right: 0;
+            border-width: 3px 3px 0 0;
+        }
+
+        .hud-corners-bottom {
+            position: absolute;
+            top: 15px; left: 15px; right: 15px; bottom: 15px;
+            pointer-events: none;
+        }
+
+        .hud-corners-bottom::before, .hud-corners-bottom::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: rgba(16, 185, 129, 0.6);
+            border-style: solid;
+        }
+
+        /* Bottom Left and Bottom Right */
+        .hud-corners-bottom::before {
+            bottom: 0; left: 0;
+            border-width: 0 0 3px 3px;
+        }
+        .hud-corners-bottom::after {
+            bottom: 0; right: 0;
+            border-width: 0 3px 3px 0;
+        }
+
+        /* Pulsing Scanner line moving across screen */
+        .hud-scanner-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            box-shadow: 0 0 15px var(--primary);
+            animation: scanner-anim 3s linear infinite;
+            display: none;
+        }
+
+        .webcam-container.scanning .hud-scanner-line {
+            display: block;
+        }
+
+        /* Camera Off Placeholder */
+        .camera-off-state {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            background: #070b14;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 30px;
+        }
+
+        .camera-off-state i {
+            font-size: 48px;
+            color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 24px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .camera-off-state h3 {
+            color: #ffffff;
+            font-size: 18px;
+        }
+
+        .camera-off-state p {
+            font-size: 13px;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        /* Upload Container */
+        .upload-container {
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        .upload-container.active {
+            display: block;
+        }
+
+        .drag-drop-zone {
+            width: 100%;
+            height: 100%;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .drag-drop-zone:hover {
+            border-color: var(--secondary);
+            background: rgba(6, 182, 212, 0.02);
+        }
+
+        .drag-drop-zone i {
+            font-size: 48px;
+            color: var(--secondary);
+            opacity: 0.8;
+        }
+
+        .drag-drop-zone h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .drag-drop-zone p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .drag-drop-zone .browse-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+            margin-top: 8px;
+        }
+
+        /* Viewport Image Preview */
+        #preview {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        /* Viewport Loading State */
+        .viewport-loader {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(16, 185, 129, 0.15);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s linear infinite;
+        }
+
+        .viewport-loader span {
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            color: #fff;
+        }
+
+        /* -------------------------------------------------------------
+           Controls Area (Buttons, Switches)
+           ------------------------------------------------------------- */
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #059669);
+            border: none;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px var(--primary-glow);
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Toggle switch component */
+        .toggle-switch-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 8px 16px;
+            border-radius: 12px;
+        }
+
+        .toggle-switch-container span {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border-radius: 34px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* -------------------------------------------------------------
+           Right Panel: Diagnosis & Destination Telemetry
+           ------------------------------------------------------------- */
+        
+        /* Prominent Bin recommendation Guide */
+        .destination-guide-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            min-height: 180px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .destination-guide-card.active {
+            border-style: solid;
+            box-shadow: 0 10px 30px var(--glow);
+            background: var(--bg);
+            border-color: var(--border);
+        }
+
+        .bin-icon-container {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            transition: all 0.3s;
+        }
+
+        .destination-guide-card.active .bin-icon-container {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
+        .bin-label {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+        }
+
+        .destination-guide-card.active .bin-label {
+            color: #ffffff;
+        }
+
+        .bin-name {
+            font-size: 24px;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .destination-guide-card.active .bin-name {
+            color: #ffffff;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .bin-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 320px;
+        }
+
+        .destination-guide-card.active .bin-desc {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* AI Telemetry Cards Grid */
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .telemetry-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .telemetry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .telemetry-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .telemetry-title i {
+            font-size: 14px;
+        }
+
+        .model-status-chip {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .telemetry-output-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .telemetry-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .telemetry-subvalue {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Custom Modern Telemetry Progress bar */
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 10px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .telemetry-subdetails-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        .subdetail-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 8px 12px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .subdetail-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .subdetail-value {
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        /* -------------------------------------------------------------
+           Aggregate Statistics Section
+           ------------------------------------------------------------- */
+        .stats-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stats-title-row h2 {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-2px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--accent, var(--text-muted));
+        }
+
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .stat-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* -------------------------------------------------------------
+           Scans History Log Table
+           ------------------------------------------------------------- */
+        .history-wrapper {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .history-table-container {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .table-category-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .history-empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .history-empty-state i {
+            font-size: 32px;
+            opacity: 0.3;
+        }
+
+        .btn-trash {
+            background: transparent;
+            border: none;
+            color: rgba(239, 68, 68, 0.6);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-trash:hover {
+            color: rgba(239, 68, 68, 1);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* -------------------------------------------------------------
+           Keyframes & Utilities
+           ------------------------------------------------------------- */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes scanner-anim {
+            0% { top: 0%; opacity: 0; }
+            5% { opacity: 1; }
+            95% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        @keyframes pulse-dot-anim {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 10px var(--primary); }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        /* Custom Scrollbar for modern dashboards */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="dashboard-container">
+
+        <!-- Header Panel with Diagnostic Info -->
+        <header>
+            <div class="header-brand">
+                <div class="header-logo-glowing">
+                    <i data-lucide="recycle"></i>
+                </div>
+                <div class="header-title">
+                    <h1>AI Smart Waste Segregation Hub</h1>
+                    <p>Dual-Model Autonomous Classification Dashboard</p>
+                </div>
+            </div>
+
+            <!-- Health Telemetry of Models/Backend -->
+            <div class="system-status">
+                <div class="status-badge" id="tmIndicator">
+                    <span class="dot-indicator dot-checking"></span>
+                    <span>MobileNet Model</span>
+                </div>
+                <div class="status-badge" id="flaskIndicator">
+                    <span class="dot-indicator dot-checking"></span>
+                    <span>Local Flask API</span>
+                </div>
+                <div class="status-badge" id="cameraIndicator">
+                    <span class="dot-indicator dot-inactive"></span>
+                    <span>Camera: Offline</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workplace Grid -->
+        <main class="workspace-grid">
+
+            <!-- Left Panel: Viewfinder & Action Controls -->
+            <section class="card-panel">
+                
+                <!-- Tab Controls -->
+                <div class="mode-switcher">
+                    <button class="mode-tab active" id="tabUpload" onclick="switchMode('upload')">
+                        <i data-lucide="image"></i> File Upload
+                    </button>
+                    <button class="mode-tab" id="tabCamera" onclick="switchMode('camera')">
+                        <i data-lucide="camera"></i> Live Webcam
+                    </button>
+                </div>
+
+                <!-- Viewfinder Monitor -->
+                <div class="viewport-wrapper">
+                    
+                    <!-- Loading overlay during processing -->
+                    <div class="viewport-loader" id="viewportLoader">
+                        <div class="spinner"></div>
+                        <span id="viewportLoaderText">Analyzing Frame...</span>
+                    </div>
+
+                    <!-- File Upload Interface -->
+                    <div class="upload-container active" id="uploadPanel">
+                        <div class="drag-drop-zone" id="dropZone" onclick="triggerFileInput()">
+                            <i data-lucide="cloud-upload"></i>
+                            <div>
+                                <h3>Drag & drop waste image here</h3>
+                                <p>Supports JPG, PNG, WebP up to 10MB</p>
+                            </div>
+                            <button class="browse-btn">Or browse computer</button>
+                        </div>
+                        <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                    </div>
+
+                    <!-- Live Camera Feed Interface -->
+                    <div class="webcam-container" id="cameraPanel">
+                        
+                        <!-- Off / Not started state overlay -->
+                        <div class="camera-off-state" id="cameraOffState">
+                            <i data-lucide="video-off"></i>
+                            <h3>Camera Feed Offline</h3>
+                            <p>Enable your webcam connection below to perform live real-time waste scans.</p>
+                            <button class="btn-primary" onclick="startCamera()">
+                                <i data-lucide="video"></i> Initialize Camera
+                            </button>
+                        </div>
+
+                        <!-- Live video display -->
+                        <video id="webcamStream" width="640" height="480" autoplay playsinline muted></video>
+
+                        <!-- HUD overlay graphic elements -->
+                        <div class="hud-overlay">
+                            <div class="hud-top">
+                                <div class="hud-badge">
+                                    <div class="pulsate-dot"></div>
+                                    <span>FEED: LIVE</span>
+                                </div>
+                                <div class="hud-badge" id="autoScanIndicator" style="display: none; background: rgba(16, 185, 129, 0.2); border-color: var(--primary);">
+                                    <span>AUTO SCANNING</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Scanner line animation -->
+                            <div class="hud-scanner-line"></div>
+                            
+                            <!-- Bounding overlay framing box -->
+                            <div class="hud-corners"></div>
+                            <div class="hud-corners-bottom"></div>
+                        </div>
+
+                    </div>
+
+                    <!-- Static Image Preview used for Upload & displaying captured frames -->
+                    <img id="preview" alt="Scan preview">
+
+                    <!-- Canvas for drawing bounding boxes -->
+                    <canvas id="overlayCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
+
+                </div>
+
+                <!-- Controls Layout Row -->
+                <div class="controls-row">
+                    <!-- Dynamic File Upload controls -->
+                    <div id="uploadControls" style="display: flex; gap: 12px; width: 100%;">
+                        <p class="bin-desc" style="font-size: 13px; color: var(--text-muted); margin: auto 0;">
+                            Select or drop any image file. The models will run classification instantly.
+                        </p>
+                    </div>
+
+                    <!-- Dynamic Camera Feed controls -->
+                    <div id="cameraControls" style="display: none; justify-content: space-between; width: 100%; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn-primary" id="btnCapture" onclick="captureFrame()" disabled>
+                                <i data-lucide="scan-line"></i> Scan Current Frame
+                            </button>
+                            <button class="btn-secondary" id="btnStopCam" onclick="stopCamera()" style="display: none;">
+                                <i data-lucide="video-off"></i> Terminate Feed
+                            </button>
+                        </div>
+
+                        <div class="toggle-switch-container">
+                            <span>Auto-Scan (3s)</span>
+                            <label class="switch">
+                                <input type="checkbox" id="autoScanToggle" onchange="toggleAutoScan(this)" disabled>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons Row -->
+                <div class="controls-row" style="margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 15px;">
+                    <div style="display: flex; align-items: center; justify-content: flex-end; width: 100%;">
+                        <div id="actionButtons" style="display: flex; gap: 12px;">
+                            <button class="btn-secondary" id="btnResetUpload" onclick="resetUploadState()" style="display: none;">
+                                <i data-lucide="refresh-cw"></i> Upload Another Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Right Panel: Telemetry diagnostics and destination recommendations -->
+            <section class="card-panel">
+                
+                <h2>Telemetry & Diagnostics</h2>
+
+                <!-- Destination recommendation guide (grows/animates on detection) -->
+                <div class="destination-guide-card" id="binGuide">
+                    <div class="bin-icon-container">
+                        <i data-lucide="help-circle" id="binGuideIcon"></i>
+                    </div>
+                    <span class="bin-label" id="binGuideLabel">Sorting Guide</span>
+                    <span class="bin-name" id="binGuideName">Awaiting Scan...</span>
+                    <p class="bin-desc" id="binGuideDesc">
+                        Place a waste object in front of the camera or upload a file. The dual AI pipeline will automatically guide you on where to sort it.
+                    </p>
+                </div>
+
+                <!-- Model Stats Output Blocks -->
+                <div class="telemetry-grid">
+                    
+                    <!-- 1st Model: Teachable Machine (Category Classifier) -->
+                    <div class="telemetry-card">
+                        <div class="telemetry-header">
+                            <div class="telemetry-title">
+                                <i data-lucide="network"></i> MobileNet Category Classifier
+                            </div>
+                            <span class="model-status-chip">Teachable Machine</span>
+                        </div>
+                        <div class="telemetry-output-row">
+                            <div class="telemetry-value" id="tmClass">Awaiting scan...</div>
+                            <div class="telemetry-subvalue" id="tmConfidence">0%</div>
+                        </div>
+                    </div>
+
+                    <!-- 2nd Model: YOLOv11 Object Detection & Physical telemetry -->
+                    <div class="telemetry-card">
+                        <div class="telemetry-header">
+                            <div class="telemetry-title">
+                                <i data-lucide="cpu"></i> YOLOv11 Object Detector
+                            </div>
+                            <span class="model-status-chip" style="background:rgba(59, 130, 246, 0.1); color: var(--primary); border-color: rgba(59,130,246,0.2);">Local Engine</span>
+                        </div>
+                        
+                        <div class="telemetry-output-row">
+                            <div class="telemetry-value" id="yoloClass">Awaiting scan...</div>
+                            <div class="telemetry-subvalue" id="yoloConfidence">0%</div>
+                        </div>
+
+                        <div class="telemetry-subdetails-grid">
+                            <div class="subdetail-box">
+                                <span class="subdetail-label">Physical Weight Estimate</span>
+                                <span class="subdetail-value" id="estWeight">0 g</span>
+                            </div>
+                            <div class="subdetail-box">
+                                <span class="subdetail-label">Object Type</span>
+                                <span class="subdetail-value" id="estType">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic breakout list of all detected objects -->
+                        <div id="yoloBreakdownContainer" style="display: none; margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
+                            <span class="subdetail-label" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); display: block; margin-bottom: 8px;">
+                                Detected Objects Breakdown
+                            </span>
+                            <div id="yoloBreakdownList" style="display: flex; flex-direction: column; gap: 8px; max-height: 140px; overflow-y: auto;">
+                                <!-- Dynamically populated rows -->
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+        <!-- Bottom Panel: Aggregate stats tracker & Saved Scan History -->
+        <section class="card-panel">
+            
+            <div class="stats-title-row">
+                <h2><i data-lucide="bar-chart-3" style="color:var(--secondary);"></i> Sorting Telemetry & Carbon Savings</h2>
+                <button class="btn-secondary" onclick="clearStats()" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; font-weight: 500;">
+                    <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Reset All Stats
+                </button>
+            </div>
+
+            <!-- Stats grid indicators -->
+            <div class="stats-grid">
+                <div class="stat-card" style="--accent: var(--secondary);">
+                    <span class="stat-label">Total Items Sorted</span>
+                    <span class="stat-number" id="statTotalItems">0</span>
+                    <span class="stat-meta">Lifetime scans in log</span>
+                </div>
+                <div class="stat-card" style="--accent: var(--color-wet);">
+                    <span class="stat-label">Wet Compost Organic</span>
+                    <span class="stat-number" id="statWetWeight">0 g</span>
+                    <span class="stat-meta" id="statWetCount">0 items sorted</span>
+                </div>
+                <div class="stat-card" style="--accent: var(--color-dry);">
+                    <span class="stat-label">Dry Recyclable Materials</span>
+                    <span class="stat-number" id="statDryWeight">0 g</span>
+                    <span class="stat-meta" id="statDryCount">0 items sorted</span>
+                </div>
+                <div class="stat-card" style="--accent: var(--color-electronic);">
+                    <span class="stat-label">Electronics Safe-Processed</span>
+                    <span class="stat-number" id="statElecWeight">0 g</span>
+                    <span class="stat-meta" id="statElecCount">0 items sorted</span>
+                </div>
+                <div class="stat-card" style="--accent: var(--color-medical);">
+                    <span class="stat-label">Medical Biohazards Sent</span>
+                    <span class="stat-number" id="statMedWeight">0 g</span>
+                    <span class="stat-meta" id="statMedCount">0 items sorted</span>
+                </div>
+                <div class="stat-card" style="--accent: var(--primary);">
+                    <span class="stat-label">Est. Carbon Offset</span>
+                    <span class="stat-number" id="statCarbonOffset" style="color: var(--primary);">0.0 g CO₂</span>
+                    <span class="stat-meta">0.45g CO₂ saved per g</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="history" style="color: var(--text-muted); width: 18px;"></i> Recent Scans Log
+                </h3>
+
+                <div class="history-wrapper">
+                    <div class="history-table-container">
+                        <table id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Source</th>
+                                    <th>Detected Item</th>
+                                    <th>Assigned Category</th>
+                                    <th>Dual Accuracy</th>
+                                    <th>Est. Weight</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                        <div class="history-empty-state" id="historyEmptyState">
+                            <i data-lucide="inbox"></i>
+                            <p>No historical waste classifications recorded yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Hidden canvas used for capturing video stream frames during scanning (offscreen to prevent rendering optimizations) -->
+        <canvas id="captureCanvas" style="position: absolute; top: -9999px; left: -9999px; visibility: hidden; pointer-events: none;"></canvas>
+
+    </div>
+
+    <!-- -------------------------------------------------------------
+       JavaScript Code Integration (Logic, Camera API & AI Pipeline)
+       ------------------------------------------------------------- -->
+    <script>
+        const MODEL_URL = "./";
+        
+        // State variables
+        let tmModel = null;
+        let webcamStreamObj = null;
+        let activeMode = "upload";
+        let autoScanInterval = null;
+        let isProcessing = false;
+
+        // Interactive object detection state
+        let lastPredictionsData = null;
+        let lastInputImage = null;
+        let lastInputSource = null;
+        let selectedConfidenceThreshold = 0.20;
+
+        // Statistics state
+        let stats = {
+            totalItems: 0,
+            wetCount: 0, wetWeight: 0,
+            dryCount: 0, dryWeight: 0,
+            elecCount: 0, elecWeight: 0,
+            medCount: 0, medWeight: 0
+        };
+
+        // History Log list
+        let scanHistory = [];
+
+        // -------------------------------------------------------------
+        // Core initialization
+        // -------------------------------------------------------------
+        window.addEventListener("DOMContentLoaded", () => {
+            lucide.createIcons();
+            loadTeachableMachineModel();
+            loadStatsAndHistory();
+            checkFlaskStatus();
+            
+            // Check status periodically
+            setInterval(checkFlaskStatus, 15000);
+        });
+
+        // Load Teachable Machine (MobileNet)
+        async function loadTeachableMachineModel() {
+            updateTMIndicator("loading");
+            try {
+                tmModel = await tmImage.load(
+                    MODEL_URL + "model.json",
+                    MODEL_URL + "metadata.json"
+                );
+                console.log("Teachable Machine model loaded successfully");
+                updateTMIndicator("active");
+                
+                // Show notification in category text
+                document.getElementById("tmClass").innerHTML = "Ready for input...";
+            } catch (error) {
+                console.error("Failed to load local model:", error);
+                updateTMIndicator("inactive");
+                document.getElementById("tmClass").innerHTML = "<span style='color:red;'>Model Error</span>";
+            }
+        }
+
+        // Check local Flask API health
+        async function checkFlaskStatus() {
+            const flaskIndicator = document.getElementById("flaskIndicator");
+            const dot = flaskIndicator.querySelector(".dot-indicator");
+            const text = flaskIndicator.querySelector("span:not(.dot-indicator)");
+
+            try {
+                // Send a GET request to the health endpoint to check connection
+                const response = await fetch("http://127.0.0.1:5000/health", {
+                    method: "GET"
+                });
+                
+                if (response.ok) {
+                    dot.className = "dot-indicator dot-active";
+                    text.innerText = "Flask Backend: Online";
+                } else {
+                    dot.className = "dot-indicator dot-inactive";
+                    text.innerText = "Flask Backend: Offline";
+                }
+            } catch (e) {
+                // Fetch failed, meaning server is offline
+                dot.className = "dot-indicator dot-inactive";
+                text.innerText = "Flask Backend: Offline";
+            }
+        }
+
+        // Update UI Indicator for Teachable Machine
+        function updateTMIndicator(status) {
+            const tmIndicator = document.getElementById("tmIndicator");
+            const dot = tmIndicator.querySelector(".dot-indicator");
+            const text = tmIndicator.querySelector("span:not(.dot-indicator)");
+
+            if (status === "active") {
+                dot.className = "dot-indicator dot-active";
+                text.innerText = "MobileNet: Online";
+            } else if (status === "loading") {
+                dot.className = "dot-indicator dot-checking";
+                text.innerText = "MobileNet: Loading...";
+            } else {
+                dot.className = "dot-indicator dot-inactive";
+                text.innerText = "MobileNet: Offline";
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Tab Layout Mode Switcher logic
+        // -------------------------------------------------------------
+        function switchMode(mode) {
+            if (activeMode === mode) return;
+            
+            // Terminate auto-scan and camera if leaving camera mode
+            if (activeMode === "camera") {
+                stopCamera();
+            }
+
+            activeMode = mode;
+
+            // Reset tabs UI
+            document.getElementById("tabUpload").classList.toggle("active", mode === "upload");
+            document.getElementById("tabCamera").classList.toggle("active", mode === "camera");
+
+            // Reset panels UI
+            document.getElementById("uploadPanel").classList.toggle("active", mode === "upload");
+            document.getElementById("cameraPanel").classList.toggle("active", mode === "camera");
+
+            // Reset controls UI
+            document.getElementById("uploadControls").style.display = mode === "upload" ? "flex" : "none";
+            document.getElementById("cameraControls").style.display = mode === "camera" ? "flex" : "none";
+
+            // Hide/Reset preview element
+            const preview = document.getElementById("preview");
+            preview.style.display = "none";
+
+            if (mode === "camera") {
+                // If we switched to camera, show the camera off template
+                document.getElementById("cameraOffState").style.display = "flex";
+                document.getElementById("webcamStream").style.display = "none";
+            }
+        }
+
+        // -------------------------------------------------------------
+        // File Upload Processing Logic
+        // -------------------------------------------------------------
+        function triggerFileInput() {
+            document.getElementById("imageUpload").click();
+        }
+
+        // Drag and Drop Zone support
+        const dropZone = document.getElementById("dropZone");
+        
+        ["dragenter", "dragover"].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = "var(--primary)";
+                dropZone.style.background = "rgba(16, 185, 129, 0.02)";
+            }, false);
+        });
+
+        ["dragleave", "drop"].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                dropZone.style.background = "transparent";
+            }, false);
+        });
+
+        dropZone.addEventListener("drop", (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                document.getElementById("imageUpload").files = files;
+                handleImageFile(files[0]);
+            }
+        });
+
+        document.getElementById("imageUpload").addEventListener("change", function(e) {
+            if (e.target.files.length > 0) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        async function handleImageFile(file) {
+            if (!file) return;
+
+            // Render upload image preview inside viewport
+            const preview = document.getElementById("preview");
+            
+            // Revoke old URL if existing to release memory
+            if (preview.src && preview.src.startsWith("blob:")) {
+                window.URL.revokeObjectURL(preview.src);
+            }
+            
+            preview.src = window.URL.createObjectURL(file);
+            preview.style.display = "block";
+            
+            // Hide upload instructions zone
+            document.getElementById("uploadPanel").classList.remove("active");
+
+            // Wait for image loading
+            await new Promise((resolve) => { preview.onload = resolve; });
+
+            // Run processing pipeline
+            await runClassificationPipeline(preview, file, "Upload");
+            
+            // Keep the preview image visible, do not re-show the drop zone automatically
+            document.getElementById("uploadPanel").classList.remove("active");
+            document.getElementById("btnResetUpload").style.display = "inline-flex";
+        }
+
+        // -------------------------------------------------------------
+        // Live Webcam Stream Logic
+        // -------------------------------------------------------------
+        async function startCamera() {
+            const video = document.getElementById("webcamStream");
+            const offState = document.getElementById("cameraOffState");
+            const cameraIndicator = document.getElementById("cameraIndicator");
+            
+            offState.style.display = "none";
+            video.style.display = "block";
+            
+            try {
+                webcamStreamObj = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 720, min: 480 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = webcamStreamObj;
+                
+                // Explicitly wait for metadata to load and then play
+                if (video.readyState >= 1) {
+                    await video.play().catch(e => console.error("Video play failed:", e));
+                } else {
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = () => {
+                            video.play().then(resolve).catch((e) => {
+                                console.error("Video play failed:", e);
+                                resolve();
+                            });
+                        };
+                        // Fallback resolve in case metadata doesn't fire
+                        setTimeout(resolve, 1500);
+                    });
+                }
+                
+                // Update camera indicator telemetry badge
+                if (cameraIndicator) {
+                    cameraIndicator.querySelector(".dot-indicator").className = "dot-indicator dot-active";
+                    cameraIndicator.querySelector("span:not(.dot-indicator)").innerText = "Camera: Online";
+                }
+                
+                // Show camera action controls active state
+                document.getElementById("btnCapture").removeAttribute("disabled");
+                document.getElementById("autoScanToggle").removeAttribute("disabled");
+                document.getElementById("btnStopCam").style.display = "inline-flex";
+            } catch (err) {
+                console.error("Camera access blocked:", err);
+                offState.style.display = "flex";
+                video.style.display = "none";
+                
+                // Update camera indicator badge to Error
+                if (cameraIndicator) {
+                    cameraIndicator.querySelector(".dot-indicator").className = "dot-indicator dot-inactive";
+                    cameraIndicator.querySelector("span:not(.dot-indicator)").innerText = "Camera: Error";
+                }
+                
+                alert("Camera Initialization Failed: Please check hardware connection or grant camera permissions in your browser.");
+            }
+        }
+
+        function stopCamera() {
+            // Disable Auto-Scan
+            const autoScanToggle = document.getElementById("autoScanToggle");
+            autoScanToggle.checked = false;
+            toggleAutoScan(autoScanToggle);
+
+            if (webcamStreamObj) {
+                webcamStreamObj.getTracks().forEach(track => track.stop());
+                webcamStreamObj = null;
+            }
+
+            const video = document.getElementById("webcamStream");
+            video.srcObject = null;
+            video.style.display = "none";
+
+            // Hide snapshot preview and overlay canvas boxes
+            document.getElementById("preview").style.display = "none";
+            const canvas = document.getElementById("overlayCanvas");
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            document.getElementById("cameraOffState").style.display = "flex";
+            document.getElementById("btnCapture").setAttribute("disabled", "true");
+            document.getElementById("btnCapture").style.display = "inline-flex";
+            document.getElementById("autoScanToggle").setAttribute("disabled", "true");
+            document.getElementById("btnStopCam").style.display = "none";
+            
+            // Update camera indicator badge to Offline
+            const cameraIndicator = document.getElementById("cameraIndicator");
+            if (cameraIndicator) {
+                cameraIndicator.querySelector(".dot-indicator").className = "dot-indicator dot-inactive";
+                cameraIndicator.querySelector("span:not(.dot-indicator)").innerText = "Camera: Offline";
+            }
+        }
+
+        // Capture static frame from live video stream using canvas
+        async function captureFrame() {
+            if (!webcamStreamObj || isProcessing) return;
+
+            const video = document.getElementById("webcamStream");
+            
+            // Check if video is ready and has valid dimensions (wait up to 2 seconds if not fully loaded)
+            if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+                console.warn("Camera video stream is not fully ready yet. Attempting to wait...");
+                await new Promise((resolve) => {
+                    let checkCount = 0;
+                    const interval = setInterval(() => {
+                        checkCount++;
+                        if ((video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) || checkCount > 20) {
+                            clearInterval(interval);
+                            resolve();
+                        }
+                    }, 100);
+                });
+                
+                // Final check
+                if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+                    alert("Camera stream is still not ready. Please ensure your camera is active and showing a live feed.");
+                    return;
+                }
+            }
+
+            // Ensure video is playing
+            if (video.paused) {
+                try {
+                    await video.play();
+                } catch (e) {
+                    console.error("Failed to play video before capture:", e);
+                }
+            }
+
+            const canvas = document.getElementById("captureCanvas");
+            const ctx = canvas.getContext("2d");
+
+            // Set matching viewport dimensions
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw current stream frame inside hidden canvas directly
+            // (No scale/translate mirroring is applied to prevent GPU blank copy bugs and to output a standard non-mirrored image for higher YOLO accuracy)
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Temporarily turn on overlay scanning animation
+            const cameraPanel = document.getElementById("cameraPanel");
+            cameraPanel.classList.add("scanning");
+
+            // Capture Blob representation and trigger AI Pipeline
+            canvas.toBlob(async (blob) => {
+                try {
+                    if (!blob || blob.size === 0) {
+                        console.error("Canvas toBlob returned null or empty blob.", blob);
+                        alert("Failed to capture frame from camera. Please try again.");
+                        return;
+                    }
+
+                    // Flask requires request.files["image"] — must be a real File/Blob, not the <video> element
+                    const tempFile = new File(
+                        [blob],
+                        "webcam_snap.jpg",
+                        { type: blob.type || "image/jpeg" }
+                    );
+
+                    // Pass video to TM; pass tempFile (not video) to YOLO / Flask
+                    await runClassificationPipeline(video, tempFile, "Camera");
+                } catch (err) {
+                    console.error("Webcam capture pipeline error:", err);
+                    alert("Camera scan failed: " + err.message);
+                } finally {
+                    cameraPanel.classList.remove("scanning");
+                }
+            }, "image/jpeg", 0.9);
+        }
+
+        // Periodic Frame Auto-Scanner
+        function toggleAutoScan(el) {
+            const indicator = document.getElementById("autoScanIndicator");
+            
+            if (el.checked) {
+                indicator.style.display = "flex";
+                // Trigger immediately, then interval
+                captureFrame();
+                autoScanInterval = setInterval(() => {
+                    captureFrame();
+                }, 3000);
+            } else {
+                indicator.style.display = "none";
+                if (autoScanInterval) {
+                    clearInterval(autoScanInterval);
+                    autoScanInterval = null;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Comprehensive AI Dual-Model Processing Pipeline
+        // -------------------------------------------------------------
+        async function runClassificationPipeline(elementForTM, imageFileForYOLO, sourceTag) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            // Activate Loader View
+            showLoader(true, "Running Dual AI Diagnostic Models...");
+
+            let finalCategory = "Unknown";
+            let tmResultName = "Unidentified";
+            let tmResultConfidence = 0;
+
+            let yoloResultName = "No waste detected";
+            let yoloResultConfidence = 0;
+            let yoloEstWeight = 0;
+
+            try {
+                // -----------------------------------------------------
+                // Model Layer 1: MobileNet (Teachable Machine Model)
+                // -----------------------------------------------------
+                if (tmModel) {
+                    const predictions = await tmModel.predict(elementForTM);
+                    
+                    // Retrieve top predictions
+                    let highest = predictions[0];
+                    for (let i = 1; i < predictions.length; i++) {
+                        if (predictions[i].probability > highest.probability) {
+                            highest = predictions[i];
+                        }
+                    }
+
+                    tmResultName = highest.className;
+                    tmResultConfidence = (highest.probability * 100);
+                    finalCategory = tmResultName; // Initial category assessment
+                }
+
+                // Update MobileNet Telemetry Card instantly
+                document.getElementById("tmClass").innerText = tmResultName;
+                document.getElementById("tmConfidence").innerText = tmResultConfidence.toFixed(1) + "%";
+
+                const catInfo = getCategoryInfo(finalCategory);
+
+                // -----------------------------------------------------
+                // Model Layer 2: YOLOv8 Object Detection via backend / fallback
+                // -----------------------------------------------------
+                try {
+                    // Flask only reads request.files["image"] — value MUST be a Blob/File multipart part
+                    if (!(imageFileForYOLO instanceof Blob)) {
+                        throw new Error(
+                            "Invalid YOLO image payload (expected Blob/File, got " +
+                            Object.prototype.toString.call(imageFileForYOLO) + "). " +
+                            "Do not pass the <video> element to FormData."
+                        );
+                    }
+                    if (imageFileForYOLO.size === 0) {
+                        throw new Error("Image file is empty — capture a valid camera frame first.");
+                    }
+
+                    const yoloFile = imageFileForYOLO instanceof File
+                        ? imageFileForYOLO
+                        : new File(
+                            [imageFileForYOLO],
+                            "capture.jpg",
+                            { type: imageFileForYOLO.type || "image/jpeg" }
+                        );
+
+                    const formData = new FormData();
+                    // Explicit filename ensures Werkzeug treats this as request.files, not request.form
+                    formData.append("image", yoloFile, yoloFile.name || "capture.jpg");
+                    formData.append("confidence", selectedConfidenceThreshold);
+
+                    let yoloResponse;
+                    let yoloData;
+
+                    try {
+                        // Layer 2.1: Call Flask Service locally
+                        yoloResponse = await fetch("http://127.0.0.1:5000/predict", {
+                            method: "POST",
+                            body: formData
+                        });
+                        if (!yoloResponse.ok) {
+                            throw new Error("Local server failed with status code " + yoloResponse.status);
+                        }
+                        yoloData = await yoloResponse.json();
+                    } catch (flaskErr) {
+                        console.error("Local backend server is offline:", flaskErr);
+                        alert("Local backend server is offline. Please start the Flask server.");
+                        throw new Error("Local backend server is offline. Please start the Flask server.");
+                    }
+
+                    // Propagate backend error if predictions failed on Flask server
+                    if (yoloData && yoloData.error) {
+                        throw new Error(yoloData.error);
+                    }
+
+                    // Parse YOLO output
+                    console.log("YOLO Diagnostic Telemetry:", yoloData);
+                    if (yoloData && yoloData.predictions) {
+                        console.log(`YOLO Detections count: ${yoloData.predictions.length}, predictions:`, yoloData.predictions);
+                    }
+
+                    // Save prediction data globally for interactive confidence filtering and resizing
+                    lastPredictionsData = yoloData;
+                    lastInputImage = elementForTM;
+                    lastInputSource = sourceTag;
+
+                    const rawPredictions = (yoloData && yoloData.predictions) ? yoloData.predictions : [];
+                    const displayPredictions = getDisplayPredictions(rawPredictions);
+
+                    renderVisualsAndBreakdown();
+                    updateYoloTelemetryUI(displayPredictions);
+                    
+                    if (displayPredictions.length > 0) {
+                        displayPredictions.forEach(pred => {
+                            const predCat = getPredictionCategory(pred);
+                            const predKey = getCategoryKeyFromName(predCat);
+                            const predWeight = pred.weight_g || getWeight(pred.class);
+                            recordScanToStats(predKey, predWeight);
+                        });
+                    } else {
+                        recordScanToStats(catInfo.key, 15);
+                    }
+                    
+                    yoloResultName = displayPredictions.length > 0 ?
+                        formatMultipleItems(displayPredictions) : "No waste detected";
+                    yoloEstWeight = displayPredictions.reduce(
+                        (acc, pred) => acc + (pred.weight_g || getWeight(pred.class)), 0
+                    );
+                    yoloResultConfidence = displayPredictions.length > 0 ?
+                        (getPredictionConfidence(displayPredictions[0]) * 100) : 0;
+
+                    addScanToHistory(
+                        sourceTag, 
+                        yoloResultName !== "No waste detected" ? yoloResultName : "Unknown Material", 
+                        tmResultName, 
+                        (tmResultConfidence + yoloResultConfidence) / (yoloResultConfidence > 0 ? 2 : 1), 
+                        yoloEstWeight, 
+                        catInfo
+                    );
+
+                } catch (yoloErr) {
+                    console.error("YOLO model prediction error:", yoloErr);
+                    document.getElementById("yoloClass").innerText = "YOLO Error: " + yoloErr.message;
+                    document.getElementById("yoloConfidence").innerText = "0%";
+                    document.getElementById("estWeight").innerText = "0 g";
+                    document.getElementById("estType").innerText = "-";
+                    document.getElementById("yoloBreakdownContainer").style.display = "none";
+                    
+                    // Add scan history showing TM classification only
+                    addScanToHistory(
+                        sourceTag,
+                        "Unknown Material (YOLO Error)",
+                        tmResultName,
+                        tmResultConfidence,
+                        15, // Fallback weight
+                        catInfo
+                    );
+                }
+
+            } catch (err) {
+                console.error("AI pipeline execution error:", err);
+                document.getElementById("tmClass").innerText = "Scan Failure";
+                document.getElementById("yoloClass").innerText = err.message;
+            } finally {
+                showLoader(false);
+                isProcessing = false;
+            }
+        }
+
+        // Display dashboard processing spinner loader
+        function showLoader(show, text = "") {
+            const loader = document.getElementById("viewportLoader");
+            const label = document.getElementById("viewportLoaderText");
+            if (show) {
+                label.innerText = text;
+                loader.style.display = "flex";
+            } else {
+                loader.style.display = "none";
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Interactive Bounding Box and Multi-Bin UI Logic
+        // -------------------------------------------------------------
+        function updateConfidenceLabel(val) {
+            document.getElementById("confidenceVal").innerText = val + "%";
+            selectedConfidenceThreshold = val / 100;
+            if (lastPredictionsData) {
+                renderVisualsAndBreakdown();
+            }
+        }
+
+        // Roboflow returns 0–1; normalize so filters/display work if API sends 0–100
+        function getPredictionConfidence(pred) {
+            let c = pred.confidence ?? pred.conf ?? 0;
+            if (typeof c === "string") c = parseFloat(c);
+            if (Number.isNaN(c)) return 0;
+            if (c > 1) c = c / 100;
+            return c;
+        }
+
+        function sortPredictionsByConfidence(predictions) {
+            return [...(predictions || [])].sort(
+                (a, b) => getPredictionConfidence(b) - getPredictionConfidence(a)
+            );
+        }
+
+        function filterPredictionsByConfidence(predictions) {
+            const list = predictions || [];
+            const filtered = list.filter(
+                (pred) => getPredictionConfidence(pred) >= selectedConfidenceThreshold
+            );
+            return applyNMS(filtered, 0.35).sort(
+                (a, b) => getPredictionConfidence(b) - getPredictionConfidence(a)
+            );
+        }
+
+        function getDisplayPredictions(predictions) {
+            return filterPredictionsByConfidence(predictions);
+        }
+
+        function updateYoloTelemetryUI(displayPreds) {
+            if (!displayPreds || displayPreds.length === 0) {
+                document.getElementById("yoloClass").innerText = "No waste detected";
+                document.getElementById("yoloConfidence").innerText = "0%";
+                document.getElementById("estWeight").innerText = "0 g";
+                document.getElementById("estType").innerText = "-";
+                return;
+            }
+
+            const topPred = displayPreds[0];
+            document.getElementById("yoloClass").innerText = formatMultipleItems(displayPreds);
+            document.getElementById("yoloConfidence").innerText =
+                (getPredictionConfidence(topPred) * 100).toFixed(1) + "%";
+
+            const totalWeight = displayPreds.reduce(
+                (acc, pred) => acc + (pred.weight_g || getWeight(pred.class)), 0
+            );
+            const materials = new Set(
+                displayPreds.map((pred) => pred.material_type || getMaterialType(pred.class))
+            );
+            document.getElementById("estWeight").innerText = totalWeight + " g";
+            document.getElementById("estType").innerText = Array.from(materials).join(", ") || "-";
+        }
+
+        function drawBoundingBoxes(predictions) {
+            const canvas = document.getElementById("overlayCanvas");
+            const ctx = canvas.getContext("2d");
+            
+            // Clear previous drawings
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!predictions || predictions.length === 0) return;
+            
+            const preview = document.getElementById("preview");
+            const video = document.getElementById("webcamStream");
+            
+            let displayW = canvas.clientWidth;
+            let displayH = canvas.clientHeight;
+            
+            // Set canvas buffer size to match its display size for crisp rendering
+            canvas.width = displayW;
+            canvas.height = displayH;
+            
+            let imgW, imgH;
+            let scaleX = 1, scaleY = 1;
+            let offsetX = 0, offsetY = 0;
+            let isCover = false;
+            let isMirrored = false;
+            
+            if (activeMode === "upload" || (activeMode === "camera" && preview.style.display === "block")) {
+                // Contain mode: static image is active
+                imgW = lastInputImage.naturalWidth || lastInputImage.width || 640;
+                imgH = lastInputImage.naturalHeight || lastInputImage.height || 480;
+                
+                const rDisplay = displayW / displayH;
+                const rImg = imgW / imgH;
+                
+                if (rImg > rDisplay) {
+                    // Letterbox (bars top/bottom)
+                    const displayedH = displayW / rImg;
+                    offsetY = (displayH - displayedH) / 2;
+                    scaleX = displayW / imgW;
+                    scaleY = displayedH / imgH;
+                } else {
+                    // Pillarbox (bars sides)
+                    const displayedW = displayH * rImg;
+                    offsetX = (displayW - displayedW) / 2;
+                    scaleX = displayedW / imgW;
+                    scaleY = displayH / imgH;
+                }
+            } else if (activeMode === "camera" && (video.style.display === "block" || video.videoWidth > 0)) {
+                // Cover mode: live webcam (use stream dims even if video is briefly hidden during scan)
+                imgW = video.videoWidth || 640;
+                imgH = video.videoHeight || 480;
+                isCover = true;
+                isMirrored = true; // live feed is mirrored (scaleX(-1))
+                
+                const rDisplay = displayW / displayH;
+                const rVid = imgW / imgH;
+                
+                let scaledW, scaledH;
+                if (rVid > rDisplay) {
+                    // Cropped left/right
+                    scaledH = displayH;
+                    scaledW = displayH * rVid;
+                    offsetX = (displayW - scaledW) / 2;
+                    scaleX = scaledW / imgW;
+                    scaleY = displayH / imgH;
+                } else {
+                    // Cropped top/bottom
+                    scaledW = displayW;
+                    scaledH = displayW / rVid;
+                    offsetY = (displayH - scaledH) / 2;
+                    scaleX = displayW / imgW;
+                    scaleY = scaledH / imgH;
+                }
+            } else {
+                return; // Nothing is visible
+            }
+            
+            predictions.forEach((pred, index) => {
+                // Calculate scaled center and box size
+                let wScaled = pred.width * scaleX;
+                let hScaled = pred.height * scaleY;
+                let xScaled = offsetX + (pred.x * scaleX);
+                let yScaled = offsetY + (pred.y * scaleY);
+                
+                // If mirrored, mirror the center x-coordinate horizontally
+                if (isMirrored) {
+                    xScaled = displayW - xScaled;
+                }
+                
+                // Top-left corner of the box
+                const xTL = xScaled - (wScaled / 2);
+                const yTL = yScaled - (hScaled / 2);
+                
+                // Retrieve color matching category
+                const cat = getPredictionCategory(pred);
+                const color = getCategoryColorHex(cat);
+                
+                // Draw bounding box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.shadowBlur = 4;
+                ctx.strokeRect(xTL, yTL, wScaled, hScaled);
+                ctx.shadowBlur = 0; // reset shadow
+                
+                // Draw small corner brackets for premium sci-fi HUD look
+                ctx.fillStyle = color;
+                const bracketLength = Math.min(15, wScaled / 4, hScaled / 4);
+                ctx.fillRect(xTL - 1, yTL - 1, bracketLength, 3);
+                ctx.fillRect(xTL - 1, yTL - 1, 3, bracketLength);
+                
+                ctx.fillRect(xTL + wScaled - bracketLength + 1, yTL - 1, bracketLength, 3);
+                ctx.fillRect(xTL + wScaled - 2, yTL - 1, 3, bracketLength);
+                
+                ctx.fillRect(xTL - 1, yTL + hScaled - 2, bracketLength, 3);
+                ctx.fillRect(xTL - 1, yTL + hScaled - bracketLength + 1, 3, bracketLength);
+                
+                ctx.fillRect(xTL + wScaled - bracketLength + 1, yTL + hScaled - 2, bracketLength, 3);
+                ctx.fillRect(xTL + wScaled - 2, yTL + hScaled - bracketLength + 1, 3, bracketLength);
+                
+                // Text Label background tag
+                const labelText = `${formatItemName(pred.class)} (${pred.weight_g || 15}g) ${Math.round(getPredictionConfidence(pred) * 100)}%`;
+                ctx.font = "bold 11px Outfit, Arial, sans-serif";
+                const labelWidth = ctx.measureText(labelText).width + 12;
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(xTL - 1, yTL - 18, labelWidth, 18);
+                
+                // Draw label text
+                ctx.fillStyle = "#ffffff";
+                ctx.textBaseline = "middle";
+                ctx.fillText(labelText, xTL + 5, yTL - 9);
+            });
+        }
+
+        function renderVisualsAndBreakdown() {
+            if (!lastPredictionsData) return;
+            
+            const predictions = lastPredictionsData.predictions || [];
+            const displayPreds = getDisplayPredictions(predictions);
+            
+            // 1. Draw bounding boxes
+            drawBoundingBoxes(displayPreds);
+            
+            // 2. Update Breakdown UI
+            const breakdownContainer = document.getElementById("yoloBreakdownContainer");
+            const breakdownList = document.getElementById("yoloBreakdownList");
+            breakdownList.innerHTML = "";
+            
+            let totalWeight = 0;
+            let uniqueMaterials = new Set();
+            
+            if (displayPreds.length > 0) {
+                updateYoloTelemetryUI(displayPreds);
+                
+                displayPreds.forEach((pred, index) => {
+                    const predName = formatItemName(pred.class);
+                    const predCat = getPredictionCategory(pred);
+                    const catColor = getCategoryColor(predCat);
+                    const predWeight = pred.weight_g || getWeight(pred.class);
+                    const predMaterial = pred.material_type || getMaterialType(pred.class);
+                    const confPct = (getPredictionConfidence(pred) * 100).toFixed(1);
+                    
+                    totalWeight += predWeight;
+                    uniqueMaterials.add(predMaterial);
+                    
+                    const row = document.createElement("div");
+                    row.className = "subdetail-box";
+                    row.style.display = "flex";
+                    row.style.flexDirection = "row";
+                    row.style.justifyContent = "space-between";
+                    row.style.alignItems = "center";
+                    row.style.padding = "8px 12px";
+                    row.style.background = "rgba(255, 255, 255, 0.01)";
+                    row.style.border = "1px solid rgba(255, 255, 255, 0.04)";
+                    row.style.borderRadius = "8px";
+                    
+                    row.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
+                            <span style="font-size: 13px; font-weight: 700; color: #fff;">${predName} #${index + 1}</span>
+                            <span style="font-size: 11px; font-weight: 600; color: ${catColor};">${predCat}</span>
+                            <span style="font-size: 10px; color: var(--text-muted);">Type: ${predMaterial}</span>
+                        </div>
+                        <div style="text-align: right; display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 12px; font-weight: 700; color: #fff;">${predWeight} g</span>
+                            <span style="font-size: 11px; font-weight: 500; color: var(--text-muted);">${confPct}% conf</span>
+                        </div>
+                    `;
+                    breakdownList.appendChild(row);
+                });
+                
+                breakdownContainer.style.display = "block";
+            } else {
+                updateYoloTelemetryUI([]);
+                breakdownContainer.style.display = "none";
+            }
+            
+            // 3. Multi-bin Sorting Guide updates
+            updateMultiBinSortingGuide(displayPreds);
+        }
+
+        function updateMultiBinSortingGuide(filteredPreds) {
+            const card = document.getElementById("binGuide");
+            const iconContainer = card.querySelector(".bin-icon-container");
+            const iconEl = document.getElementById("binGuideIcon");
+            const label = document.getElementById("binGuideLabel");
+            const name = document.getElementById("binGuideName");
+            const desc = document.getElementById("binGuideDesc");
+            
+            if (!filteredPreds || filteredPreds.length === 0) {
+                // Standard default template
+                card.classList.remove("active");
+                card.style = "";
+                iconEl.setAttribute("data-lucide", "help-circle");
+                label.innerText = "Sorting Guide";
+                name.innerText = "Awaiting Scan...";
+                desc.innerText = "Place a waste object in front of the camera or upload a file. The dual AI pipeline will automatically guide you on where to sort it.";
+                lucide.createIcons();
+                return;
+            }
+            
+            // Group by category key
+            const categoriesPresent = {};
+            filteredPreds.forEach(pred => {
+                const catName = getPredictionCategory(pred);
+                const catInfo = getCategoryInfo(catName);
+                if (!categoriesPresent[catInfo.key]) {
+                    categoriesPresent[catInfo.key] = {
+                        info: catInfo,
+                        items: []
+                    };
+                }
+                categoriesPresent[catInfo.key].items.push(formatItemName(pred.class));
+            });
+            
+            const categoryKeys = Object.keys(categoriesPresent);
+            
+            // If only one category exists, use the single-bin presentation
+            if (categoryKeys.length === 1) {
+                const catInfo = categoriesPresent[categoryKeys[0]].info;
+                updateSortingGuide(catInfo);
+                return;
+            }
+            
+            // Multi-bin guide: blend theme colors
+            card.style.setProperty("--bg", "rgba(255, 255, 255, 0.03)");
+            card.style.setProperty("--border", "rgba(255, 255, 255, 0.1)");
+            card.style.setProperty("--glow", "rgba(255, 255, 255, 0.05)");
+            card.style.color = "var(--text-main)";
+            card.classList.add("active");
+            
+            iconContainer.style.color = "var(--secondary)";
+            iconEl.setAttribute("data-lucide", "layers");
+            label.innerText = "Multi-Category Sorting Guide";
+            name.innerText = "Segregation Required";
+            
+            // Build detailed descriptive list of bins to sort into
+            let descHtml = `<div style="display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; margin-top: 5px;">`;
+            categoryKeys.forEach(key => {
+                const cat = categoriesPresent[key];
+                const itemCounts = {};
+                cat.items.forEach(itm => {
+                    itemCounts[itm] = (itemCounts[itm] || 0) + 1;
+                });
+                const itemSummary = Object.entries(itemCounts).map(([name, count]) => `${count}x ${name}`).join(", ");
+                
+                descHtml += `
+                    <div style="border-left: 3px solid ${cat.info.color}; padding-left: 10px; margin-bottom: 2px;">
+                        <span style="font-weight: 700; color: ${cat.info.color}; font-size: 13px; text-transform: uppercase;">
+                            ${cat.info.bin}:
+                        </span>
+                        <p style="font-size: 12px; color: #fff; margin-top: 1px;">
+                            Sort <strong>${itemSummary}</strong> in here.
+                        </p>
+                    </div>
+                `;
+            });
+            descHtml += `</div>`;
+            
+            desc.innerHTML = descHtml;
+            lucide.createIcons();
+        }
+
+        function resetUploadState() {
+            // Hide preview and canvas
+            document.getElementById("preview").style.display = "none";
+            const canvas = document.getElementById("overlayCanvas");
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Reset predictions
+            lastPredictionsData = null;
+            
+            // Show upload panel
+            document.getElementById("uploadPanel").classList.add("active");
+            document.getElementById("btnResetUpload").style.display = "none";
+            
+            // Reset controls and telemetry
+            document.getElementById("tmClass").innerText = "Awaiting scan...";
+            document.getElementById("tmConfidence").innerText = "0%";
+            document.getElementById("yoloClass").innerText = "Awaiting scan...";
+            document.getElementById("yoloConfidence").innerText = "0%";
+            document.getElementById("estWeight").innerText = "0 g";
+            document.getElementById("estType").innerText = "-";
+            document.getElementById("yoloBreakdownContainer").style.display = "none";
+            document.getElementById("yoloBreakdownList").innerHTML = "";
+            
+            // Reset sorting guide
+            document.getElementById("binGuide").classList.remove("active");
+            document.getElementById("binGuide").style = "";
+            document.getElementById("binGuideIcon").setAttribute("data-lucide", "help-circle");
+            document.getElementById("binGuideLabel").innerText = "Sorting Guide";
+            document.getElementById("binGuideName").innerText = "Awaiting Scan...";
+            document.getElementById("binGuideDesc").innerText = "Place a waste object in front of the camera or upload a file. The dual AI pipeline will automatically guide you on where to sort it.";
+            
+            lucide.createIcons();
+            
+            // Clear input file value
+            document.getElementById("imageUpload").value = "";
+        }
+
+
+
+        // Redraw bounding boxes on window resize
+        window.addEventListener("resize", () => {
+            if (lastPredictionsData) {
+                const predictions = lastPredictionsData.predictions || [];
+                const displayPreds = getDisplayPredictions(predictions);
+                drawBoundingBoxes(displayPreds);
+            }
+        });
+
+        // -------------------------------------------------------------
+        // Formatting & Estimations Utilities
+        // -------------------------------------------------------------
+        function formatMultipleItems(predictions) {
+            if (!predictions || predictions.length === 0) return "No specific object";
+            const counts = {};
+            predictions.forEach(pred => {
+                const name = formatItemName(pred.class);
+                counts[name] = (counts[name] || 0) + 1;
+            });
+            return Object.entries(counts)
+                .map(([name, count]) => count > 1 ? `${count}x ${name}` : name)
+                .join(", ");
+        }
+
+        // Apply client-side Non-Maximum Suppression (NMS) to eliminate duplicate/overlapping bounding boxes of the same class
+        function applyNMS(predictions, iouThreshold = 0.35) {
+            if (!predictions || predictions.length === 0) return [];
+            
+            // Sort predictions by confidence descending
+            const sorted = [...predictions].sort(
+                (a, b) => getPredictionConfidence(b) - getPredictionConfidence(a)
+            );
+            const selected = [];
+            
+            for (let i = 0; i < sorted.length; i++) {
+                const box1 = sorted[i];
+                let keep = true;
+                
+                for (let j = 0; j < selected.length; j++) {
+                    const box2 = selected[j];
+                    
+                    // Only apply NMS to boxes of the same class
+                    if (box1.class !== box2.class) continue;
+                    
+                    // Calculate coordinates
+                    const b1_x1 = box1.x - box1.width / 2;
+                    const b1_y1 = box1.y - box1.height / 2;
+                    const b1_x2 = box1.x + box1.width / 2;
+                    const b1_y2 = box1.y + box1.height / 2;
+                    
+                    const b2_x1 = box2.x - box2.width / 2;
+                    const b2_y1 = box2.y - box2.height / 2;
+                    const b2_x2 = box2.x + box2.width / 2;
+                    const b2_y2 = box2.y + box2.height / 2;
+                    
+                    const x_left = Math.max(b1_x1, b2_x1);
+                    const y_top = Math.max(b1_y1, b2_y1);
+                    const x_right = Math.min(b1_x2, b2_x2);
+                    const y_bottom = Math.min(b1_y2, b2_y2);
+                    
+                    if (x_right > x_left && y_bottom > y_top) {
+                        const intersection = (x_right - x_left) * (y_bottom - y_top);
+                        const area1 = box1.width * box1.height;
+                        const area2 = box2.width * box2.height;
+                        const union = area1 + area2 - intersection;
+                        const iou = intersection / union;
+                        
+                        // Check if one is significantly inside the other (containment)
+                        const containment = intersection / Math.min(area1, area2);
+                        
+                        if (iou > iouThreshold || containment > 0.75) {
+                            keep = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (keep) {
+                    selected.push(box1);
+                }
+            }
+            
+            return selected;
+        }
+
+        // Return direct Hex colors for HTML5 Canvas compatibility (since Canvas context does not support CSS variables)
+        function getCategoryColorHex(categoryName) {
+            const normalized = (categoryName || "").toLowerCase().trim();
+            if (normalized.includes("wet")) return "#10b981"; // Emerald
+            if (normalized.includes("dry")) return "#3b82f6"; // Blue
+            if (normalized.includes("medical")) return "#ef4444"; // Red
+            if (normalized.includes("electronic") || normalized.includes("e-waste")) return "#f59e0b"; // Amber/Yellow
+            return "#9ca3af"; // Gray
+        }
+
+        function normalizeName(name) {
+            if (!name) return "";
+            let normalized = name.toLowerCase().trim().replace(/[_ ]/g, "");
+            if (normalized === "papers" || normalized === "paper") {
+                return "paperbundle";
+            }
+            if (normalized.endsWith("s") && normalized !== "glass") {
+                if (normalized === "leafyvegetables") {
+                    return "leafyvegetable";
+                }
+                return normalized.slice(0, -1);
+            }
+            return normalized;
+        }
+
+        function getPredictionCategory(pred) {
+            if (pred.category) return pred.category; // returned from Flask
+            
+            // Fallback mapping for local API offline / Roboflow direct API
+            const normClass = normalizeName(pred.class);
+            
+            const wetNorm = [
+                "leafyvegetable", "tomatowaste", "bananapeel", "carrotpeel", 
+                "potatopeel", "eggshell", "onion", "apple", "orange", "lemon", "coconut"
+            ];
+            const dryNorm = [
+                "paperbundle", "plasticbottle", "glass", "cardboard", 
+                "aluminiumcan", "backpack", "clothe", "footware", 
+                "kitchenutensil", "spoon", "chair", "fork"
+            ];
+            const medicalNorm = ["syringe", "mask", "glove"];
+            const electronicNorm = [
+                "television", "laptop", "mobilephone", "charger", 
+                "keyboard", "computermouse", "headphone", "earphone", 
+                "battery", "remote"
+            ];
+            
+            if (wetNorm.includes(normClass)) return "Wet Organic Waste";
+            if (dryNorm.includes(normClass)) return "Dry Recyclable Waste";
+            if (medicalNorm.includes(normClass)) return "Biohazard Medical Waste";
+            if (electronicNorm.includes(normClass)) return "Electronic Waste (E-Waste)";
+            return "General Waste";
+        }
+
+        function getCategoryKeyFromName(catName) {
+            const normalized = (catName || "").toLowerCase().trim();
+            if (normalized.includes("wet")) return "wet";
+            if (normalized.includes("dry")) return "dry";
+            if (normalized.includes("medical")) return "medical";
+            if (normalized.includes("electronic") || normalized.includes("e-waste")) return "electronic";
+            return "unknown";
+        }
+
+        function getCategoryColor(categoryName) {
+            const normalized = (categoryName || "").toLowerCase().trim();
+            if (normalized.includes("wet")) return "var(--color-wet)";
+            if (normalized.includes("dry")) return "var(--color-dry)";
+            if (normalized.includes("medical")) return "var(--color-medical)";
+            if (normalized.includes("electronic") || normalized.includes("e-waste")) return "var(--color-electronic)";
+            return "var(--text-muted)";
+        }
+
+        function formatItemName(str) {
+            if (!str) return "Unknown";
+            return str.split(/[_-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+        }
+
+        // Predefined estimated waste weights
+        function getWeight(item) {
+            const weights = {
+                leafy_vegetables: 20,
+                tomato_waste: 12,
+                banana_peel: 20,
+                gloves: 7,
+                masks: 5,
+                paper_bundle: 2500,
+                plastic_bottle: 25,
+                television: 5000,
+                carrot_peel: 8,
+                syringe: 12,
+                laptop: 1500,
+                potato_peel: 10,
+                mobile_phone: 180,
+                egg_shells: 5,
+                Onion: 15,
+                glass: 150,
+                Charger: 40,
+                keyboard: 400,
+                Cardboards: 300,
+                apple: 100,
+                computer_mouse: 100,
+                aluminium_can: 15,
+                oranges: 120,
+                headphones: 200,
+                earphones: 30,
+                battery: 20,
+                Backpack: 500,
+                clothes: 300,
+                footware: 400,
+                kitchen_utensil: 250,
+                spoon: 30,
+                remote: 80,
+                chair: 3000,
+                fork: 30,
+                Lemon: 30,
+                coconut: 400
+            };
+            
+            if (weights[item] !== undefined) return weights[item];
+            
+            const norm = normalizeName(item);
+            for (let key in weights) {
+                if (normalizeName(key) === norm) return weights[key];
+            }
+            return 15; // default fallback weight
+        }
+
+        function getMaterialType(item) {
+            const types = {
+                leafy_vegetables: "Organic",
+                tomato_waste: "Organic",
+                banana_peel: "Organic",
+                gloves: "Latex Rubber",
+                masks: "Polypropylene",
+                paper_bundle: "Cellulose Fiber",
+                plastic_bottle: "Plastic (PET)",
+                television: "Mixed Composites",
+                carrot_peel: "Organic",
+                syringe: "Biohazard Medical",
+                laptop: "E-Waste Circuitry",
+                potato_peel: "Organic",
+                mobile_phone: "Lithium / Metal",
+                egg_shells: "Organic",
+                Onion: "Organic",
+                glass: "Glass",
+                Charger: "Copper / Silicon",
+                keyboard: "Plastic / Electronic",
+                Cardboards: "Cellulose Fiber",
+                apple: "Organic",
+                computer_mouse: "Plastic / Electronic",
+                aluminium_can: "Aluminium",
+                oranges: "Organic",
+                headphones: "Plastic / Electronic",
+                earphones: "Plastic / Copper",
+                battery: "Heavy Metal / Lead",
+                Backpack: "Nylon / Fabric",
+                clothes: "Cotton / Polyester",
+                footware: "Rubber / Leather",
+                kitchen_utensil: "Stainless Steel",
+                spoon: "Stainless Steel / Plastic",
+                remote: "Plastic / Circuitry",
+                chair: "Wood / Plastic",
+                fork: "Stainless Steel / Plastic",
+                Lemon: "Organic",
+                coconut: "Organic"
+            };
+            
+            if (types[item] !== undefined) return types[item];
+            
+            const norm = normalizeName(item);
+            for (let key in types) {
+                if (normalizeName(key) === norm) return types[key];
+            }
+            return "General Material";
+        }
+
+        // Category parameters dictionary mapping labels
+        function getCategoryInfo(categoryName) {
+            const normalized = (categoryName || "").toLowerCase().trim();
+            if (normalized.includes("wet")) {
+                return {
+                    key: "wet",
+                    label: "Wet Organic Waste",
+                    color: "var(--color-wet)",
+                    bg: "rgba(16, 185, 129, 0.1)",
+                    border: "rgba(16, 185, 129, 0.3)",
+                    glow: "rgba(16, 185, 129, 0.25)",
+                    bin: "Organic Compost Bin (Green)",
+                    description: "Dispose of kitchen scraps, organic leftovers, and botanical clippings. Highly suitable for green composting.",
+                    icon: "leaf"
+                };
+            } else if (normalized.includes("dry")) {
+                return {
+                    key: "dry",
+                    label: "Dry Recyclable Waste",
+                    color: "var(--color-dry)",
+                    bg: "rgba(59, 130, 246, 0.1)",
+                    border: "rgba(59, 130, 246, 0.3)",
+                    glow: "rgba(59, 130, 246, 0.25)",
+                    bin: "Recycling Bin (Blue)",
+                    description: "Place dry paper, clean plastics, glass bottles, and cardboard packages in here. Keep clean to prevent decay.",
+                    icon: "recycle"
+                };
+            } else if (normalized.includes("medical")) {
+                return {
+                    key: "medical",
+                    label: "Biohazard Medical Waste",
+                    color: "var(--color-medical)",
+                    bg: "rgba(239, 68, 68, 0.1)",
+                    border: "rgba(239, 68, 68, 0.3)",
+                    glow: "rgba(239, 68, 68, 0.25)",
+                    bin: "Medical Disposal Hub (Red)",
+                    description: "Dispose of diagnostic materials, biological protective equipment, gloves, masks, and needles. Keep secure.",
+                    icon: "shield-alert"
+                };
+            } else if (normalized.includes("electronic") || normalized.includes("e-waste")) {
+                return {
+                    key: "electronic",
+                    label: "Electronic Waste (E-Waste)",
+                    color: "var(--color-electronic)",
+                    bg: "rgba(245, 158, 11, 0.1)",
+                    border: "rgba(245, 158, 11, 0.3)",
+                    glow: "rgba(245, 158, 11, 0.25)",
+                    bin: "E-Waste Recycling Hub (Yellow)",
+                    description: "Old batteries, wires, chips, screens, and computer accessories. Heavy toxic compounds require authorized plants.",
+                    icon: "cpu"
+                };
+            }
+            
+            // Standard general waste fallback parameters
+            return {
+                key: "unknown",
+                label: "General Non-Recyclable",
+                color: "var(--text-muted)",
+                bg: "rgba(156, 163, 175, 0.1)",
+                border: "rgba(156, 163, 175, 0.3)",
+                glow: "rgba(156, 163, 175, 0.15)",
+                bin: "General Garbage Bin (Gray)",
+                description: "Mixed materials not matching defined sorting flows. Send to domestic municipal landfill disposal.",
+                icon: "help-circle"
+            };
+        }
+
+        // Dynamically update the premium sorting guide visual card
+        function updateSortingGuide(catInfo) {
+            const card = document.getElementById("binGuide");
+            const iconContainer = card.querySelector(".bin-icon-container");
+            const iconEl = document.getElementById("binGuideIcon");
+            const label = document.getElementById("binGuideLabel");
+            const name = document.getElementById("binGuideName");
+            const desc = document.getElementById("binGuideDesc");
+
+            // Apply style parameters dynamically
+            card.style.setProperty("--bg", catInfo.bg);
+            card.style.setProperty("--border", catInfo.border);
+            card.style.setProperty("--glow", catInfo.glow);
+            card.style.color = catInfo.color;
+            card.classList.add("active");
+
+            iconContainer.style.color = catInfo.color;
+            iconEl.setAttribute("data-lucide", catInfo.icon);
+            
+            label.innerText = catInfo.label;
+            name.innerText = catInfo.bin;
+            desc.innerText = catInfo.description;
+
+            // Re-render icon
+            lucide.createIcons();
+        }
+
+        // -------------------------------------------------------------
+        // Statistics & Storage Persistence Management
+        // -------------------------------------------------------------
+        function loadStatsAndHistory() {
+            try {
+                const savedStats = localStorage.getItem("waste_stats");
+                if (savedStats) {
+                    stats = JSON.parse(savedStats);
+                }
+
+                const savedHistory = localStorage.getItem("waste_scan_history");
+                if (savedHistory) {
+                    scanHistory = JSON.parse(savedHistory);
+                }
+            } catch (err) {
+                console.error("Local Storage reading error:", err);
+            }
+
+            renderStats();
+            renderHistoryTable();
+        }
+
+        function saveStatsAndHistory() {
+            try {
+                localStorage.setItem("waste_stats", JSON.stringify(stats));
+                localStorage.setItem("waste_scan_history", JSON.stringify(scanHistory));
+            } catch (err) {
+                console.error("Local Storage writing error:", err);
+            }
+        }
+
+        // Record scan statistics
+        function recordScanToStats(categoryKey, weight) {
+            stats.totalItems += 1;
+
+            if (categoryKey === "wet") {
+                stats.wetCount += 1;
+                stats.wetWeight += weight;
+            } else if (categoryKey === "dry") {
+                stats.dryCount += 1;
+                stats.dryWeight += weight;
+            } else if (categoryKey === "electronic") {
+                stats.elecCount += 1;
+                stats.elecWeight += weight;
+            } else if (categoryKey === "medical") {
+                stats.medCount += 1;
+                stats.medWeight += weight;
+            }
+
+            saveStatsAndHistory();
+            renderStats();
+        }
+
+        function renderStats() {
+            document.getElementById("statTotalItems").innerText = stats.totalItems;
+            
+            document.getElementById("statWetWeight").innerText = stats.wetWeight + " g";
+            document.getElementById("statWetCount").innerText = stats.wetCount + " items sorted";
+            
+            document.getElementById("statDryWeight").innerText = stats.dryWeight + " g";
+            document.getElementById("statDryCount").innerText = stats.dryCount + " items sorted";
+            
+            document.getElementById("statElecWeight").innerText = stats.elecWeight + " g";
+            document.getElementById("statElecCount").innerText = stats.elecCount + " items sorted";
+            
+            document.getElementById("statMedWeight").innerText = stats.medWeight + " g";
+            document.getElementById("statMedCount").innerText = stats.medCount + " items sorted";
+
+            // Total weight processed calculations
+            const totalWeightGrams = stats.wetWeight + stats.dryWeight + stats.elecWeight + stats.medWeight;
+            // Standard environmental metrics: 0.45g CO2 offset per gram processed correctly
+            const offsetCO2 = totalWeightGrams * 0.45;
+
+            if (offsetCO2 >= 1000) {
+                document.getElementById("statCarbonOffset").innerText = (offsetCO2 / 1000).toFixed(2) + " kg CO₂";
+            } else {
+                document.getElementById("statCarbonOffset").innerText = offsetCO2.toFixed(1) + " g CO₂";
+            }
+        }
+
+        function clearStats() {
+            if (!confirm("Are you sure you want to permanently clear lifetime stats and historical scan logs?")) return;
+
+            stats = {
+                totalItems: 0,
+                wetCount: 0, wetWeight: 0,
+                dryCount: 0, dryWeight: 0,
+                elecCount: 0, elecWeight: 0,
+                medCount: 0, medWeight: 0
+            };
+            scanHistory = [];
+
+            saveStatsAndHistory();
+            renderStats();
+            renderHistoryTable();
+
+            // Reset Diagnosis widgets
+            document.getElementById("binGuide").classList.remove("active");
+            document.getElementById("binGuide").style = "";
+            document.getElementById("binGuideIcon").setAttribute("data-lucide", "help-circle");
+            document.getElementById("binGuideLabel").innerText = "Sorting Guide";
+            document.getElementById("binGuideName").innerText = "Awaiting Scan...";
+            document.getElementById("binGuideDesc").innerText = "Place a waste object in front of the camera or upload a file. The dual AI pipeline will automatically guide you on where to sort it.";
+            
+            document.getElementById("tmClass").innerText = "Awaiting scan...";
+            document.getElementById("tmConfidence").innerText = "0%";
+            document.getElementById("yoloClass").innerText = "Awaiting scan...";
+            document.getElementById("yoloConfidence").innerText = "0%";
+            document.getElementById("estWeight").innerText = "0 g";
+            document.getElementById("estType").innerText = "-";
+            document.getElementById("yoloBreakdownContainer").style.display = "none";
+            document.getElementById("yoloBreakdownList").innerHTML = "";
+            
+            lucide.createIcons();
+        }
+
+        // -------------------------------------------------------------
+        // History List logs mapping
+        // -------------------------------------------------------------
+        function addScanToHistory(source, object, categoryName, accuracy, weight, catInfo) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const historyEntry = {
+                id: Date.now(),
+                timestamp: timeStr,
+                source: source,
+                object: object,
+                categoryName: categoryName,
+                accuracy: accuracy.toFixed(1) + "%",
+                weight: weight + " g",
+                badgeBg: catInfo.color,
+                badgeLabel: catInfo.label
+            };
+
+            // Prepend entry (newest first) and limit array length
+            scanHistory.unshift(historyEntry);
+            if (scanHistory.length > 50) {
+                scanHistory.pop();
+            }
+
+            saveStatsAndHistory();
+            renderHistoryTable();
+        }
+
+        function deleteHistoryItem(id) {
+            scanHistory = scanHistory.filter(item => item.id !== id);
+            saveStatsAndHistory();
+            renderHistoryTable();
+        }
+
+        function renderHistoryTable() {
+            const body = document.getElementById("historyBody");
+            const emptyState = document.getElementById("historyEmptyState");
+
+            body.innerHTML = "";
+
+            if (scanHistory.length === 0) {
+                emptyState.style.display = "flex";
+                return;
+            }
+
+            emptyState.style.display = "none";
+
+            scanHistory.forEach(item => {
+                const tr = document.createElement("tr");
+                
+                tr.innerHTML = `
+                    <td style="color: var(--text-muted); font-weight:500;">${item.timestamp}</td>
+                    <td>
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <i data-lucide="${item.source === 'Camera' ? 'camera' : 'image'}" style="width:14px; color:var(--text-muted);"></i>
+                            ${item.source}
+                        </span>
+                    </td>
+                    <td style="font-weight:600;">${item.object}</td>
+                    <td>
+                        <span class="table-category-badge" style="background-color: ${item.badgeBg};">
+                            ${item.badgeLabel}
+                        </span>
+                    </td>
+                    <td style="font-weight:600; color:var(--primary);">${item.accuracy}</td>
+                    <td style="font-weight:500;">${item.weight}</td>
+                    <td>
+                        <button class="btn-trash" onclick="deleteHistoryItem(${item.id})">
+                            <i data-lucide="trash-2" style="width:15px; height:15px;"></i>
+                        </button>
+                    </td>
+                `;
+                
+                body.appendChild(tr);
+            });
+
+            // Reinitialize newly added vector icons
+            lucide.createIcons();
+        }
+    </script>
+</body>
+
+</html>

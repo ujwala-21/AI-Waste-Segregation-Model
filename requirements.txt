@@ -1,0 +1,8 @@
+ultralytics
+flask
+flask-cors
+pandas
+openpyxl
+pyyaml
+onnx
+requests
